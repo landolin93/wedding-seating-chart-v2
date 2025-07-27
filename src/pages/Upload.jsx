@@ -1,0 +1,307 @@
+
+import React, { useState, useRef } from "react";
+import { Guest } from "@/api/entities";
+import { ExtractDataFromUploadedFile, UploadFile } from "@/api/integrations";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { Upload, FileText, Check, AlertCircle, ArrowLeft, Users } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+
+export default function UploadPage() {
+  const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      handleFileSelect(files[0]);
+    }
+  };
+
+  const handleFileSelect = (selectedFile) => {
+    if (selectedFile && selectedFile.type === "text/csv") {
+      setFile(selectedFile);
+      setError(null);
+      setResult(null);
+    } else {
+      setError("Please select a CSV file");
+    }
+  };
+
+  const processCSV = async () => {
+    if (!file) return;
+
+    setUploading(true);
+    setProgress(10);
+    setError(null);
+
+    try {
+      // Upload file
+      setProgress(30);
+      const { file_url } = await UploadFile({ file });
+
+      setProgress(60);
+      // Extract data using the Guest schema
+      const extractResult = await ExtractDataFromUploadedFile({
+        file_url,
+        json_schema: {
+          type: "object",
+          properties: {
+            guests: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  first_name: { type: "string" }, // Changed from 'name'
+                  last_name: { type: "string" },  // Added for CSV mapping
+                  email: { type: "string" },
+                  phone: { type: "string" },
+                  rsvp_status: {
+                    type: "string",
+                    enum: ["pending", "confirmed", "declined"],
+                    default: "pending"
+                  },
+                  table_number: { type: "number" }, // New field
+                  notes: { type: "string" }
+                },
+                required: ["first_name"] // Changed to first_name as per new CSV format
+              }
+            }
+          }
+        }
+      });
+
+      setProgress(80);
+
+      if (extractResult.status === "success" && extractResult.output?.guests) {
+        // Process CSV data - combine first and last names
+        const processedGuests = extractResult.output.guests.map(guest => ({
+          name: `${guest.first_name || ''} ${guest.last_name || ''}`.trim() || guest.name,
+          email: guest.email,
+          phone: guest.phone,
+          rsvp_status: guest.rsvp_status || 'pending',
+          table_number: guest.table_number ? parseInt(guest.table_number) : null,
+          notes: guest.notes
+        }));
+
+        await Guest.bulkCreate(processedGuests);
+        setProgress(100);
+        setResult({
+          count: processedGuests.length,
+          guests: processedGuests
+        });
+      } else {
+        throw new Error("Could not process the CSV file. Please check the format.");
+      }
+    } catch (error) {
+      setError(error.message || "An error occurred while processing the file");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-amber-50/30 to-stone-100 p-6">
+      <div className="max-w-4xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8">
+
+          <div className="flex items-center gap-4 mb-6">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => navigate(createPageUrl("Dashboard"))} className="bg-[#8cabc0] text-slate-50 text-sm font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border h-10 w-10 border-stone-300 hover:bg-white hover:text-[#8cabc0]">
+
+
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-stone-900">Upload Guest List</h1>
+              <p className="text-stone-600 mt-1">Import your wedding guests from a CSV file</p>
+            </div>
+          </div>
+        </motion.div>
+
+        <AnimatePresence mode="wait">
+          {!result ?
+          <motion.div
+            key="upload"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}>
+
+              <Card className="bg-white/60 backdrop-blur-sm border-stone-200/60 shadow-xl">
+                <CardHeader>
+                  <CardTitle className="text-xl font-semibold text-stone-900 flex items-center gap-3">
+                    <Upload className="w-6 h-6 text-amber-600" />
+                    CSV File Upload
+                  </CardTitle>
+                  <p className="text-stone-600">Upload a CSV file with columns: First name, Last name, email, phone, rsvp status, table number, notes</p>
+                </CardHeader>
+                <CardContent>
+                  <div
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
+                  dragActive ?
+                  "border-amber-400 bg-amber-50/50" :
+                  "border-stone-300 hover:border-amber-400 hover:bg-stone-50/50"}`
+                  }
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}>
+
+                    <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => handleFileSelect(e.target.files[0])}
+                    className="hidden" />
+
+                    
+                    <div className="w-16 h-16 bg-gradient-to-br from-amber-100 to-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <FileText className="w-8 h-8 text-amber-600" />
+                    </div>
+                    
+                    <h3 className="text-lg font-semibold text-stone-900 mb-2">
+                      {file ? file.name : "Drop your CSV file here"}
+                    </h3>
+                    <p className="text-stone-500 mb-6">
+                      {file ? "Ready to process" : "or click to browse files"}
+                    </p>
+                    
+                    {!file &&
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-gradient-to-r from-amber-500 to-rose-500 text-white px-4 py-2 text-sm font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 h-10 shadow-lg hover:shadow-xl transition-all duration-300 hover:from-amber-600 hover:to-rose-600">
+                        <Upload className="w-4 h-4 mr-2" />
+                        Select CSV File
+                      </Button>
+                  }
+                    
+                    {file && !uploading &&
+                  <Button
+                    onClick={processCSV}
+                    className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+
+                        <Users className="w-4 h-4 mr-2" />
+                        Process Guest List
+                      </Button>
+                  }
+                  </div>
+
+                  {uploading &&
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mt-6">
+
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-amber-600"></div>
+                        <span className="text-stone-700 font-medium">Processing your guest list...</span>
+                      </div>
+                      <Progress value={progress} className="h-2" />
+                    </motion.div>
+                }
+
+                  {error &&
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-6">
+
+                      <Alert variant="destructive" className="border-red-200 bg-red-50">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
+                    </motion.div>
+                }
+                </CardContent>
+              </Card>
+            </motion.div> :
+
+          <motion.div
+            key="success"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}>
+
+              <Card className="bg-white/60 backdrop-blur-sm border-stone-200/60 shadow-xl">
+                <CardHeader>
+                  <CardTitle className="text-xl font-semibold text-emerald-700 flex items-center gap-3">
+                    <Check className="w-6 h-6" />
+                    Successfully Imported Guests
+                  </CardTitle>
+                  <p className="text-stone-600">
+                    {result.count} guests have been added to your wedding list
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6">
+                    <h3 className="font-semibold text-emerald-800 mb-2">Import Summary</h3>
+                    <p className="text-emerald-700">✅ {result.count} guests imported successfully</p>
+                  </div>
+
+                  <div className="space-y-2 mb-6 max-h-40 overflow-y-auto">
+                    {result.guests.slice(0, 10).map((guest, index) =>
+                  <div key={index} className="flex items-center justify-between p-2 bg-stone-50 rounded-lg">
+                        <span className="font-medium text-stone-900">{guest.name}</span>
+                        <span className="text-sm text-stone-500">{guest.email}</span>
+                      </div>
+                  )}
+                    {result.guests.length > 10 &&
+                  <p className="text-center text-stone-500 text-sm py-2">
+                        ... and {result.guests.length - 10} more guests
+                      </p>
+                  }
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button
+                    onClick={() => navigate(createPageUrl("Guests"))}
+                    className="bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white flex-1">
+
+                      <Users className="w-4 h-4 mr-2" />
+                      Manage Guests
+                    </Button>
+                    <Button
+                    onClick={() => navigate(createPageUrl("Dashboard"))}
+                    variant="outline"
+                    className="border-stone-300 hover:bg-stone-50 flex-1">
+
+                      Back to Dashboard
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          }
+        </AnimatePresence>
+      </div>
+    </div>);
+
+}
