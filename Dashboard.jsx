@@ -1,237 +1,228 @@
-import React, { useState, useEffect } from "react";
-import { Guest } from "@/entities/Guest";
-import { Table } from "@/entities/Table";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
-import { Users, TableProperties, Upload, Search, Heart, CheckCircle, Clock, XCircle } from "lucide-react";
-import { motion } from "framer-motion";
-
-export default function Dashboard() {
-  const [guests, setGuests] = useState([]);
-  const [tables, setTables] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      const [guestData, tableData] = await Promise.all([
-        Guest.list(),
-        Table.list()
-      ]);
-      setGuests(guestData);
-      setTables(tableData);
-    } catch (error) {
-      console.error("Error loading data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getGuestStats = () => {
-    const confirmed = guests.filter((g) => g.rsvp_status === 'confirmed').length;
-    const pending = guests.filter((g) => g.rsvp_status === 'pending').length;
-    const declined = guests.filter((g) => g.rsvp_status === 'declined').length;
-    const assigned = guests.filter((g) => g.table_number).length;
-
-    return { confirmed, pending, declined, assigned, total: guests.length };
-  };
-
-  const stats = getGuestStats();
-
-  const cardVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
-  };
-
-  return (
-    <div className="min-h-screen p-6" style={{ backgroundColor: '#8cabc0' }}>
-      <div className="max-w-7xl mx-auto">
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={cardVariants}
-          className="mb-8">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-              <Heart className="w-8 h-8 text-white" />
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wedding Seating Dashboard</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #e6eef9, #f5f7fa);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            color: #333;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+        .container {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 1200px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(5px);
+            display: flex;
+        }
+        .sidebar {
+            width: 250px;
+            background: #8cabc0;
+            padding: 25px;
+            border-radius: 10px 0 0 10px;
+            margin-right: 30px;
+            text-align: center;
+            height: calc(100vh - 60px);
+            overflow-y: auto;
+        }
+        .sidebar h3 {
+            font-size: 1.5em;
+            margin: 0 0 20px;
+            color: #fff;
+            font-weight: 700;
+        }
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
+        .sidebar ul li {
+            margin: 20px 0;
+        }
+        .sidebar ul li a {
+            text-decoration: none;
+            color: #fff;
+            font-size: 1.1em;
+            transition: opacity 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sidebar ul li a:hover {
+            opacity: 0.8;
+        }
+        .sidebar ul li a svg {
+            margin-right: 10px;
+            width: 20px;
+            height: 20px;
+            fill: #fff;
+        }
+        .content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .dashboard-header h1 {
+            font-size: 2.5em;
+            margin: 0;
+            color: #8cabc0;
+        }
+        .dashboard-header p {
+            font-size: 1.1em;
+            color: #6a829b;
+        }
+        .card-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: #f0f4f8;
+            padding: 20px;
+            border-radius: 10px;
+            width: 22%;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border: 1px solid #8cabc0;
+        }
+        .card h4 {
+            margin: 0 0 10px;
+            font-size: 1.2em;
+            color: #8cabc0;
+        }
+        .card p {
+            margin: 5px 0;
+            font-size: 1.1em;
+        }
+        .card span {
+            font-size: 1.2em;
+            color: #8cabc0;
+        }
+        .quick-actions, .recent-activity {
+            background: #f0f4f8;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border: 1px solid #8cabc0;
+            width: 48%;
+        }
+        .quick-actions h4, .recent-activity h4 {
+            font-size: 1.3em;
+            color: #8cabc0;
+            margin-top: 0;
+        }
+        .quick-actions p, .recent-activity p {
+            font-size: 1em;
+            color: #6a829b;
+        }
+        .quick-actions button {
+            display: block;
+            width: 100%;
+            margin: 15px 0;
+            padding: 12px;
+            border: none;
+            background: #8cabc0;
+            border-radius: 5px;
+            color: #fff;
+            font-family: 'Roboto', sans-serif;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .quick-actions button:hover {
+            background: #708b9e;
+        }
+        .recent-activity ul {
+            list-style: none;
+            padding: 0;
+        }
+        .recent-activity ul li {
+            margin: 15px 0;
+            font-size: 1em;
+        }
+        .recent-activity ul li span {
+            float: right;
+        }
+        .two-columns {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h3>WeddingSeat<br>Seating Management</h3>
+            <ul>
+                <li><a href="#"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3L2 12h3v8h14v-8h3L12 3zm1 5h-2v4H9v2h2v4h2v-4h2v-2h-2V8z"/></svg> Dashboard</a></li>
+                <li><a href="#"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 12"><path d="M12 12l6-6h-4V0H10v6H6l6 6z"/></svg> Upload Guests</a></li>
+                <li><a href="#"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> Manage Guests</a></li>
+                <li><a href="#"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 13h8v-2H3v2zm0 4h8v-2H3v2zm0-8h8V7H3v2zm10 0v2h8V9h-8zm0 4h8v-2h-8v2zm0 4h8v-2h-8v2z"/></svg> Table Layout</a></li>
+                <li><a href="#"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27c1.2-1.4 1.82-3.31 1.48-5.34-.47-2.78-2.79-5-5.59-5.34-4.23-.52-7.79 3.04-7.27 7.27.34 2.8 2.56 5.12 5.34 5.59 2.03.34 3.94-.28 5.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg> Guest Search</a></li>
+            </ul>
+        </div>
+        <div class="content">
+            <div class="dashboard-header">
+                <h1>Wedding Seating Dashboard</h1>
+                <p>Manage your guests and table arrangements with elegance</p>
             </div>
-            <h1 className="text-4xl font-bold text-white mb-2">Wedding Seating Dashboard</h1>
-            <p className="text-white/80 text-lg">Manage your guests and table arrangements with elegance</p>
-          </div>
-        </motion.div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={cardVariants}
-            transition={{ delay: 0.1 }}>
-            <Card className="bg-white/90 backdrop-blur-sm border-white/30 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold text-stone-600 uppercase tracking-wide">Total Guests</CardTitle>
-                  <Users className="w-5 h-5" style={{ color: '#8cabc0' }} />
+            <div class="card-container">
+                <div class="card">
+                    <h4>TOTAL GUESTS</h4>
+                    <p>200<br>200 assigned to tables</p>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-stone-900 mb-1">{stats.total}</div>
-                <p className="text-sm text-stone-500">{stats.assigned} assigned to tables</p>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={cardVariants}
-            transition={{ delay: 0.2 }}>
-            <Card className="bg-white/90 backdrop-blur-sm border-white/30 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold text-stone-600 uppercase tracking-wide">Confirmed</CardTitle>
-                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+                <div class="card">
+                    <h4>CONFIRMED</h4>
+                    <p>0<br>Ready for seating</p>
+                    <span>✔</span>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-emerald-700 mb-1">{stats.confirmed}</div>
-                <p className="text-sm text-stone-500">Ready for seating</p>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={cardVariants}
-            transition={{ delay: 0.3 }}>
-            <Card className="bg-white/90 backdrop-blur-sm border-white/30 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold text-stone-600 uppercase tracking-wide">Pending</CardTitle>
-                  <Clock className="w-5 h-5 text-stone-600" />
+                <div class="card">
+                    <h4>PENDING</h4>
+                    <p>200<br>Awaiting response</p>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 1.2em; height: 1.2em; vertical-align: middle;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm0-4h-2v-6h2v6zm-1-9h-2v2h2v-2z"/></svg>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-stone-700 mb-1">{stats.pending}</div>
-                <p className="text-sm text-stone-500">Awaiting response</p>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={cardVariants}
-            transition={{ delay: 0.4 }}>
-            <Card className="bg-white/90 backdrop-blur-sm border-white/30 shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold text-stone-600 uppercase tracking-wide">Tables</CardTitle>
-                  <TableProperties className="w-5 h-5 text-rose-600" />
+                <div class="card">
+                    <h4>TABLES</h4>
+                    <p>3<br>Reception tables</p>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 1.2em; height: 1.2em; vertical-align: middle;"><path d="M3 13h8v-2H3v2zm0 4h8v-2H3v2zm0-8h8V7H3v2zm10 0v2h8V9h-8zm0 4h8v-2h-8v2zm0 4h8v-2h-8v2z"/></svg>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-rose-700 mb-1">{tables.length}</div>
-                <p className="text-sm text-stone-500">Reception tables</p>
-              </CardContent>
-            </Card>
-          </motion.div>
+            </div>
+            <div class="two-columns">
+                <div class="quick-actions">
+                    <h4>Quick Actions</h4>
+                    <p>Get started with your seating arrangements</p>
+                    <button>Upload Guest List (CSV)</button>
+                    <button>Manage Guests Manually</button>
+                    <button>Design Table Layout</button>
+                    <button>Guest Search Portal</button>
+                </div>
+                <div class="recent-activity">
+                    <h4>Recent Activity</h4>
+                    <p>Latest updates to your guest list</p>
+                    <ul>
+                        <li>Michelle Lam <br> Table 1 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 1.2em; height: 1.2em; vertical-align: middle;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm0-4h-2v-6h2v6zm-1-9h-2v2h2v-2z"/></svg></li>
+                        <li>Josephine Lam <br> Table 1 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 1.2em; height: 1.2em; vertical-align: middle;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm0-4h-2v-6h2v6zm-1-9h-2v2h2v-2z"/></svg></li>
+                        <li>Nathan Wong <br> Table 1 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 1.2em; height: 1.2em; vertical-align: middle;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm0-4h-2v-6h2v6zm-1-9h-2v2h2v-2z"/></svg></li>
+                        <li>Becky Wong <br> Table 1 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 1.2em; height: 1.2em; vertical-align: middle;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm0-4h-2v-6h2v6zm-1-9h-2v2h2v-2z"/></svg></li>
+                        <li>Bailey Wong <br> Table 1 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 1.2em; height: 1.2em; vertical-align: middle;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm0-4h-2v-6h2v6zm-1-9h-2v2h2v-2z"/></svg></li>
+                    </ul>
+                </div>
+            </div>
         </div>
-
-        <div className="grid md:grid-cols-2 gap-8">
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={cardVariants}
-            transition={{ delay: 0.5 }}>
-            <Card className="bg-white/90 backdrop-blur-sm border-white/30 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold text-stone-900">Quick Actions</CardTitle>
-                <p className="text-stone-600">Get started with your seating arrangements</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Link to={createPageUrl("Upload")} className="w-full">
-                  <Button className="w-full text-white shadow-lg hover:shadow-xl transition-all duration-300 py-6" style={{ backgroundColor: '#8cabc0' }}>
-                    <Upload className="w-5 h-5 mr-3" />
-                    Upload Guest List (CSV)
-                  </Button>
-                </Link>
-                
-                <Link to={createPageUrl("Guests")} className="w-full">
-                  <Button variant="outline" className="bg-[#8cabc0] text-slate-50 px-4 py-6 text-sm font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border h-10 w-full border-stone-300 hover:bg-white hover:text-[#8cabc0] transition-all duration-300">
-                    <Users className="w-5 h-5 mr-3" />
-                    Manage Guests Manually
-                  </Button>
-                </Link>
-
-                <Link to={createPageUrl("Layout")} className="w-full">
-                  <Button variant="outline" className="bg-[#8cabc0] text-slate-50 px-4 py-6 text-sm font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border h-10 w-full border-stone-300 hover:bg-white hover:text-[#8cabc0] transition-all duration-300">
-                    <TableProperties className="w-5 h-5 mr-3" />
-                    Design Table Layout
-                  </Button>
-                </Link>
-
-                <Link to={createPageUrl("Search")} className="w-full">
-                  <Button variant="outline" className="bg-[#8cabc0] text-slate-50 px-4 py-6 text-sm font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border h-10 w-full border-stone-300 hover:bg-white hover:text-[#8cabc0] transition-all duration-300">
-                    <Search className="w-5 h-5 mr-3" />
-                    Guest Search Portal
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={cardVariants}
-            transition={{ delay: 0.6 }}>
-            <Card className="bg-white/90 backdrop-blur-sm border-white/30 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold text-stone-900">Recent Activity</CardTitle>
-                <p className="text-stone-600">Latest updates to your guest list</p>
-              </CardHeader>
-              <CardContent>
-                {guests.length === 0 ?
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Users className="w-8 h-8 text-stone-400" />
-                    </div>
-                    <p className="text-stone-500 mb-4">No guests added yet</p>
-                    <Link to={createPageUrl("Upload")}>
-                      <Button size="sm" className="text-white" style={{ backgroundColor: '#8cabc0' }}>
-                        Add Your First Guests
-                      </Button>
-                    </Link>
-                  </div> :
-                  <div className="space-y-3">
-                    {guests.slice(0, 5).map((guest, index) => (
-                      <div key={guest.id} className="flex items-center justify-between p-3 bg-stone-50/50 rounded-lg">
-                        <div>
-                          <p className="font-medium text-stone-900">{guest.name}</p>
-                          <p className="text-sm text-stone-500">
-                            {guest.table_number ? `Table ${guest.table_number}` : 'No table assigned'}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {guest.rsvp_status === 'confirmed' && <CheckCircle className="w-4 h-4 text-emerald-600" />}
-                          {guest.rsvp_status === 'pending' && <Clock className="w-4 h-4 text-stone-600" />}
-                          {guest.rsvp_status === 'declined' && <XCircle className="w-4 h-4 text-red-600" />}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                }
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </div>
     </div>
-  );
-}
+</body>
+</html>
